@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useState, useEffect } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -16,13 +16,25 @@ export default function LoginPage() {
 
   const router = useRouter();
   
-  // Inicializamos el cliente de Supabase con tus variables de entorno públicas
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Inicializamos Supabase de forma segura para evitar errores de compilación estática
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+
+  useEffect(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseAnonKey) {
+      setSupabase(createClient(supabaseUrl, supabaseAnonKey));
+    }
+  }, []);
 
   async function handleLogin() {
+    if (!supabase) {
+      setErrorMessage("El cliente de Supabase no está configurado correctamente");
+      setShowErrorAlert(true);
+      return;
+    }
+
     if (!dni || !password) {
       setErrorMessage("Por favor ingrese usuario y contraseña");
       setShowErrorAlert(true);
@@ -32,10 +44,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Truco: Convertimos el usuario ingresado al formato de correo interno
       const emailFormatted = `${dni.trim().toLowerCase()}@sistema.local`;
 
-      // 1. Intentamos iniciar sesión en Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: emailFormatted,
         password: password,
@@ -45,7 +55,6 @@ export default function LoginPage() {
         throw new Error("Credenciales inválidas o usuario no registrado");
       }
 
-      // 2. Consultamos su rol en la tabla "profiles"
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("rol")
@@ -56,7 +65,6 @@ export default function LoginPage() {
         throw new Error("No se encontró el perfil de usuario en la base de datos");
       }
 
-      // 3. Redirección según el rol obtenido de tu base de datos
       const userRol = profileData.rol;
       if (userRol === "admin") {
         router.push("/admin/dashboard");
