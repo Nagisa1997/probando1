@@ -1,24 +1,79 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [dni, setDni] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   
-  // Nuevo estado para controlar nuestra alerta personalizada
+  // Estados para alertas personalizadas
   const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("Usuario o clave incorrectos");
 
-  function handleLogin() {
-    // Si los campos están vacíos, mostramos nuestra alerta hermosa en lugar del alert() feo
+  const router = useRouter();
+  
+  // Inicializamos el cliente de Supabase con tus variables de entorno públicas
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  async function handleLogin() {
     if (!dni || !password) {
+      setErrorMessage("Por favor ingrese usuario y contraseña");
       setShowErrorAlert(true);
       return;
     }
-    
-    // Aquí irá tu lógica de conexión más adelante
-    alert(`Iniciando sesión para: ${dni} (Esto luego lo cambiaremos por el ingreso real)`);
+
+    setLoading(true);
+
+    try {
+      // Truco: Convertimos el usuario ingresado al formato de correo interno
+      const emailFormatted = `${dni.trim().toLowerCase()}@sistema.local`;
+
+      // 1. Intentamos iniciar sesión en Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailFormatted,
+        password: password,
+      });
+
+      if (authError || !authData.user) {
+        throw new Error("Credenciales inválidas o usuario no registrado");
+      }
+
+      // 2. Consultamos su rol en la tabla "profiles"
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("rol")
+        .eq("id", authData.user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        throw new Error("No se encontró el perfil de usuario en la base de datos");
+      }
+
+      // 3. Redirección según el rol obtenido de tu base de datos
+      const userRol = profileData.rol;
+      if (userRol === "admin") {
+        router.push("/admin/dashboard");
+      } else if (userRol === "docente") {
+        router.push("/docente/dashboard");
+      } else if (userRol === "estudiante") {
+        router.push("/estudiante/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
+
+    } catch (error: any) {
+      setErrorMessage(error.message || "Ocurrió un error al iniciar sesión");
+      setShowErrorAlert(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -27,18 +82,15 @@ export default function LoginPage() {
       {showErrorAlert && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-lg p-8 flex flex-col items-center shadow-2xl w-[90%] max-w-[360px] animate-in zoom-in duration-200">
-            {/* Círculo con la X roja */}
             <div className="w-20 h-20 rounded-full border-[3px] border-[#f27474] flex items-center justify-center mb-5">
               <svg className="w-12 h-12 text-[#f27474]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
             
-            {/* Textos de la alerta */}
             <h2 className="text-2xl font-bold text-gray-700 mb-2">Error</h2>
-            <p className="text-gray-500 mb-6 text-center">Usuario o clave incorrectos</p>
+            <p className="text-gray-500 mb-6 text-center">{errorMessage}</p>
             
-            {/* Botón OK */}
             <button
               onClick={() => setShowErrorAlert(false)}
               className="bg-[#8b0000] hover:bg-[#a50000] text-white font-bold py-2.5 px-8 rounded transition-colors"
@@ -50,22 +102,17 @@ export default function LoginPage() {
       )}
 
       {/* --- PANTALLA PRINCIPAL --- */}
-      {/* Usamos h-screen y overflow-hidden para forzar que cuadre al 100% de la pantalla sin scroll */}
       <main className="h-screen w-full flex flex-col lg:flex-row bg-white font-sans overflow-hidden">
         
         {/* PANEL 1: IMAGEN INSTITUCIONAL */}
         <section className="relative w-full lg:w-1/2 h-[40vh] lg:h-screen flex">
-          {/* Imagen de fondo */}
           <img
             src="/fondo.jpeg"
             alt="Desfile I.E. Nuestra Señora de Copacabana"
             className="absolute inset-0 w-full h-full object-cover"
           />
           
-          {/* Capa verde transparente (Overlay) */}
           <div className="absolute inset-0 bg-[#0A8A43]/85 flex flex-col items-center justify-center text-center px-6 lg:px-12 text-white z-10">
-            
-            {/* Logo CIRCA */}
             <img 
               src="/logo-circa.png" 
               alt="Logo CIRCA" 
@@ -86,18 +133,14 @@ export default function LoginPage() {
 
         {/* PANEL 2: FORMULARIO DE INICIO DE SESIÓN */}
         <section className="w-full lg:w-1/2 h-full flex items-center justify-center p-6 lg:p-8 bg-white overflow-y-auto">
-          {/* Amplié un poquitito el ancho máximo a 460px para que las letras más grandes entren bien */}
           <div className="w-full max-w-[460px] flex flex-col items-center text-center my-auto">
             
-            {/* Logo de la Institución y Título */}
             <div className="mb-6 w-full flex flex-col items-center">
               <img 
                 src="/logo-ie.png" 
                 alt="Insignia I.E. Nuestra Señora de Copacabana" 
-                // Aquí aumentamos el tamaño del logo (de h-20/24 a h-24/28)
                 className="h-24 lg:h-28 w-auto mb-3 rounded-full shadow-md object-contain" 
               />
-              {/* Aquí crecieron todos los textos institucionales sutilmente */}
               <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">
                 Plataforma Educativa
               </p>
@@ -115,7 +158,6 @@ export default function LoginPage() {
 
               {/* Input DNI / Usuario */}
               <div className="mb-4 text-left w-full">
-                {/* Labels un poco más grandes (text-sm) */}
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
                   DNI / Usuario
                 </label>
@@ -123,10 +165,9 @@ export default function LoginPage() {
                   <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   </span>
-                  {/* El input creció de h-11 a h-12 y la letra a text-base */}
                   <input
                     type="text"
-                    placeholder="Ingrese su DNI o usuario"
+                    placeholder="Ingrese su DNI o usuario (ej: adminmelissa)"
                     value={dni}
                     onChange={(e) => setDni(e.target.value)}
                     className="w-full h-12 rounded-xl border border-gray-200 pl-12 pr-4 text-base outline-none focus:ring-2 focus:ring-[#0A8A43]/30 focus:border-[#0A8A43] transition-all bg-gray-50/50"
@@ -178,10 +219,17 @@ export default function LoginPage() {
               {/* Botón Ingresar */}
               <button
                 onClick={handleLogin}
-                className="w-full h-12 rounded-xl bg-[#0A8A43] hover:bg-[#087238] text-white text-base font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mb-4"
+                disabled={loading}
+                className="w-full h-12 rounded-xl bg-[#0A8A43] hover:bg-[#087238] text-white text-base font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mb-4 disabled:opacity-50"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                Ingresar al sistema
+                {loading ? (
+                  <span>Verificando...</span>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    Ingresar al sistema
+                  </>
+                )}
               </button>
 
               {/* Footer */}
