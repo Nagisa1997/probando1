@@ -1,16 +1,8 @@
 "use client";
 
-// Forzar que esta página sea dinámica para evitar errores de compilación estática en el build
-export const dynamic = 'force-dynamic';
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-
-// Inicializamos Supabase de forma segura
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function LoginPage() {
   const [dni, setDni] = useState("");
@@ -30,6 +22,19 @@ export default function LoginPage() {
     setShowErrorAlert(false);
 
     try {
+      // Inicializamos el cliente de Supabase aquí dentro de forma segura
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        setErrorMessage("Faltan las credenciales de Supabase en el entorno");
+        setShowErrorAlert(true);
+        setLoading(false);
+        return;
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: dni,
         password: password,
