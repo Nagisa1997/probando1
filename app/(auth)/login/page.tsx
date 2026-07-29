@@ -55,8 +55,26 @@ export default function LoginPage() {
         throw new Error("Credenciales inválidas o usuario no registrado");
       }
 
-      // Mientras pruebas, mandamos a todos directamente al dashboard general
-      router.push("/dashboard");
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("rol")
+        .eq("id", authData.user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        throw new Error("No se encontró el perfil de usuario en la base de datos");
+      }
+
+      const userRol = profileData.rol;
+      if (userRol === "admin") {
+        router.push("/admin/dashboard");
+      } else if (userRol === "docente") {
+        router.push("/docente/dashboard");
+      } else if (userRol === "estudiante") {
+        router.push("/estudiante/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
 
     } catch (error: any) {
       setErrorMessage(error.message || "Ocurrió un error al iniciar sesión");
@@ -157,7 +175,7 @@ export default function LoginPage() {
                   </span>
                   <input
                     type="text"
-                    placeholder="Ingrese su DNI o usuario (ej: 75239308)"
+                    placeholder="Ingrese su DNI o usuario (ej: adminmelissa)"
                     value={dni}
                     onChange={(e) => setDni(e.target.value)}
                     className="w-full h-12 rounded-xl border border-gray-200 pl-12 pr-4 text-base outline-none focus:ring-2 focus:ring-[#0A8A43]/30 focus:border-[#0A8A43] transition-all bg-gray-50/50"
@@ -195,6 +213,17 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {/* Opciones */}
+              <div className="flex justify-between items-center mb-6 w-full text-sm">
+                <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
+                  <input type="checkbox" className="w-4 h-4 accent-[#0A8A43] rounded" />
+                  Recordarme
+                </label>
+                <button className="text-[#0A8A43] font-semibold hover:underline">
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+
               {/* Botón Ingresar */}
               <button
                 onClick={handleLogin}
@@ -210,6 +239,16 @@ export default function LoginPage() {
                   </>
                 )}
               </button>
+
+              {/* Footer */}
+              <div className="border-t border-gray-100 pt-4 text-center text-sm">
+                <p className="text-gray-500">
+                  ¿No tienes cuenta? {" "}
+                  <button className="text-[#0A8A43] font-semibold hover:underline">
+                    Regístrate aquí
+                  </button>
+                </p>
+              </div>
             </div>
           </div>
         </section>
