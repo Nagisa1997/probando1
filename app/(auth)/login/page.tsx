@@ -1,43 +1,70 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  
-  // Nuevo estado para controlar nuestra alerta personalizada
   const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("Usuario o clave incorrectos");
+  const [loading, setLoading] = useState(false);
+  
+  const router = useRouter();
 
-  function handleLogin() {
-    // Si los campos están vacíos, mostramos nuestra alerta hermosa en lugar del alert() feo
-    if (!dni || !password) {
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!username || !password) {
+      setErrorMessage("Por favor, complete todos los campos");
       setShowErrorAlert(true);
       return;
     }
-    
-    // Aquí irá tu lógica de conexión más adelante
-    alert(`Iniciando sesión para: ${dni} (Esto luego lo cambiaremos por el ingreso real)`);
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("usuarios")
+        .select("*")
+        .eq("username", username.trim())
+        .eq("password", password.trim())
+        .single();
+
+      if (error || !data) {
+        setErrorMessage("Usuario o contraseña incorrectos");
+        setShowErrorAlert(true);
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem("usuario_actual", JSON.stringify(data));
+      router.push("/dashboard");
+
+    } catch (error) {
+      console.error("Error en el inicio de sesión:", error);
+      setErrorMessage("Ocurrió un error al conectar con el servidor");
+      setShowErrorAlert(true);
+      setLoading(false);
+    }
   }
 
   return (
     <>
-      {/* --- MODAL DE ALERTA --- */}
       {showErrorAlert && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-lg p-8 flex flex-col items-center shadow-2xl w-[90%] max-w-[360px] animate-in zoom-in duration-200">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center shadow-2xl w-[90%] max-w-[360px]">
             <div className="w-20 h-20 rounded-full border-[3px] border-[#f27474] flex items-center justify-center mb-5">
               <svg className="w-12 h-12 text-[#f27474]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
             
-            {/* Textos de la alerta */}
             <h2 className="text-2xl font-bold text-gray-700 mb-2">Error</h2>
-            <p className="text-gray-500 mb-6 text-center">Usuario o clave incorrectos</p>
+            <p className="text-gray-500 mb-6 text-center">{errorMessage}</p>
             
-            {/* Botón OK */}
             <button
               onClick={() => setShowErrorAlert(false)}
               className="bg-[#8b0000] hover:bg-[#a50000] text-white font-bold py-2.5 px-8 rounded transition-colors cursor-pointer"
@@ -48,27 +75,19 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* --- PANTALLA PRINCIPAL --- */}
       <main className="h-screen w-full flex flex-col lg:flex-row bg-white font-sans overflow-hidden">
-
-        {/* PANEL 1: IMAGEN INSTITUCIONAL */}
         <section className="relative w-full lg:w-1/2 h-[40vh] lg:h-screen flex">
           <img
             src="/fondo.jpeg"
             alt="Desfile I.E. Nuestra Señora de Copacabana"
             className="absolute inset-0 w-full h-full object-cover"
           />
-          
-          {/* Capa verde transparente (Overlay) */}
           <div className="absolute inset-0 bg-[#0A8A43]/85 flex flex-col items-center justify-center text-center px-6 lg:px-12 text-white z-10">
-            
-            {/* Logo CIRCA */}
             <img 
               src="/logo-circa.png" 
               alt="Logo CIRCA" 
               className="absolute top-4 left-4 lg:top-8 lg:left-8 w-24 lg:w-32 rounded-full shadow-lg bg-white border-2 border-white object-contain"
             />
-
             <p className="text-sm lg:text-xl uppercase tracking-widest font-semibold text-white/80 mb-2 lg:mb-3 mt-16 lg:mt-0">
               I.E. Nuestra Señora de Copacabana
             </p>
@@ -81,16 +100,12 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* PANEL 2: FORMULARIO DE INICIO DE SESIÓN */}
         <section className="w-full lg:w-1/2 h-full flex items-center justify-center p-6 lg:p-8 bg-white overflow-y-auto">
           <div className="w-full max-w-[460px] flex flex-col items-center text-center my-auto">
-            
-            {/* Logo de la Institución y Título */}
             <div className="mb-6 w-full flex flex-col items-center">
               <img 
                 src="/logo-ie.png" 
                 alt="Insignia I.E. Nuestra Señora de Copacabana" 
-                // Aquí aumentamos el tamaño del logo (de h-20/24 a h-24/28)
                 className="h-24 lg:h-28 w-auto mb-3 rounded-full shadow-md object-contain" 
               />
               <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">
@@ -102,14 +117,12 @@ export default function LoginPage() {
               <p className="text-base text-gray-500 font-medium">CIRCA</p>
             </div>
 
-            {/* FORMULARIO: Permite que funcione la tecla Enter */}
             <form onSubmit={handleLogin} className="w-full flex-1">
               <div className="text-center mb-6">
                 <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Iniciar Sesión</h2>
                 <p className="text-gray-400 text-sm mt-1">Ingrese sus credenciales para continuar</p>
               </div>
 
-              {/* Input Usuario */}
               <div className="mb-4 text-left w-full">
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
                   Usuario
@@ -120,18 +133,17 @@ export default function LoginPage() {
                   </span>
                   <input
                     type="text"
-                    placeholder="Ingrese su DNI o usuario"
-                    value={dni}
-                    onChange={(e) => setDni(e.target.value)}
+                    placeholder="Ingrese su usuario"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="w-full h-12 rounded-xl border border-gray-200 pl-12 pr-4 text-base outline-none focus:ring-2 focus:ring-[#0A8A43]/30 focus:border-[#0A8A43] transition-all bg-gray-50/50"
                   />
                 </div>
               </div>
 
-              {/* Input Contraseña (DNI) */}
               <div className="mb-5 text-left w-full">
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
-                  Contraseña (DNI)
+                  Contraseña
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
@@ -139,7 +151,7 @@ export default function LoginPage() {
                   </span>
                   <input
                     type={showPassword ? "text" : "password"}
-                    placeholder="Ingrese su DNI como contraseña"
+                    placeholder="Ingrese su contraseña"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full h-12 rounded-xl border border-gray-200 pl-12 pr-11 text-base outline-none focus:ring-2 focus:ring-[#0A8A43]/30 focus:border-[#0A8A43] transition-all bg-gray-50/50"
@@ -158,35 +170,13 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Opciones */}
-              <div className="flex justify-between items-center mb-6 w-full text-sm">
-                <label className="flex items-center gap-2 text-gray-500 cursor-pointer select-none">
-                  <input type="checkbox" className="w-4 h-4 accent-[#0A8A43] rounded" />
-                  Recordarme
-                </label>
-                <button type="button" className="text-[#0A8A43] font-semibold hover:underline">
-                  ¿Olvidaste tu contraseña?
-                </button>
-              </div>
-
-              {/* Botón Ingresar */}
               <button
-                onClick={handleLogin}
-                className="w-full h-12 rounded-xl bg-[#0A8A43] hover:bg-[#087238] text-white text-base font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mb-4"
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 rounded-xl bg-[#0A8A43] hover:bg-[#087238] text-white text-base font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mb-4 disabled:opacity-50"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                Ingresar al sistema
+                {loading ? "Verificando..." : "Ingresar al sistema"}
               </button>
-
-              {/* Footer */}
-              <div className="border-t border-gray-100 pt-4 text-center text-sm">
-                <p className="text-gray-500">
-                  ¿No tienes cuenta? {" "}
-                  <button className="text-[#0A8A43] font-semibold hover:underline">
-                    Regístrate aquí
-                  </button>
-                </p>
-              </div>
             </form>
           </div>
         </section>
