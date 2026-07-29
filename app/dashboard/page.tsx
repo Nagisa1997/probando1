@@ -1,15 +1,88 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function DashboardPage() {
-  const [usuario, setUsuario] = useState({ 
-    nombre: "Administradora", 
-    detalle: "Super Admin", 
-    grupo: "Cruz Verde Varones" 
-  });
-  
-  const [stats, setStats] = useState({ estudiantes: 250, personal: 18, citaciones: 5, psicologia: 2 });
+  const router = useRouter();
+  const [cargando, setCargando] = useState(true);
+  const [usuario, setUsuario] = useState({ nombre: "", rol: "", foto_url: "" });
+  const [stats, setStats] = useState({ estudiantes: 0, personal: 0, citaciones: 0, psicologia: 0 });
+
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  async function cargarDatos() {
+    // 1. Verificar que haya sesión activa (si no, mandar al login)
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    // 2. Traer el perfil real de quien inició sesión
+    const { data: perfil, error: errorPerfil } = await supabase
+      .from("profiles")
+      .select("nombres, apellidos, rol, foto_url")
+      .eq("id", user.id)
+      .single();
+
+    if (errorPerfil || !perfil) {
+      router.push("/login");
+      return;
+    }
+
+    setUsuario({
+      nombre: `${perfil.nombres} ${perfil.apellidos}`,
+      rol: perfil.rol,
+      foto_url: perfil.foto_url || "",
+    });
+
+    // 3. Traer los números reales para las tarjetas (KPIs)
+    //    { count: "exact", head: true } = solo cuenta filas, no las trae todas (más rápido)
+    const [{ count: totalEstudiantes }, { count: totalPersonal }, { count: totalCitaciones }, { count: totalPsicologia }] =
+      await Promise.all([
+        supabase.from("students").select("*", { count: "exact", head: true }),
+        supabase.from("staff").select("*", { count: "exact", head: true }),
+        supabase.from("notices").select("*", { count: "exact", head: true }),
+        supabase.from("psychology_appointments").select("*", { count: "exact", head: true }),
+      ]);
+
+    setStats({
+      estudiantes: totalEstudiantes || 0,
+      personal: totalPersonal || 0,
+      citaciones: totalCitaciones || 0,
+      psicologia: totalPsicologia || 0,
+    });
+
+    setCargando(false);
+  }
+
+  // Nombre amigable del rol para mostrar en pantalla
+  const nombreRol: Record<string, string> = {
+    admin_general: "Super Admin",
+    admin_basico: "Administrador",
+    docente: "Docente",
+    psicologo: "Psicólogo(a)",
+    estudiante: "Estudiante",
+    padre: "Padre de Familia",
+  };
+
+  if (cargando) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-500">Cargando...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 space-y-8">
@@ -17,105 +90,27 @@ export default function DashboardPage() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Hola, {usuario.nombre} 👋</h1>
-          <p className="text-xl text-gray-600 font-semibold mt-1">{usuario.detalle}</p>
+          <p className="text-xl text-gray-600 font-semibold mt-1">{nombreRol[usuario.rol] || usuario.rol}</p>
           <p className="text-gray-500 font-medium mt-2">Bienvenido al sistema educativo de la I.E. Nuestra Señora de Copacabana - CIRCA</p>
         </div>
 
-        {/* Círculo de Foto de Perfil (Más grande) */}
         <div className="w-32 h-32 rounded-full bg-green-200 border-4 border-white shadow-md flex items-center justify-center overflow-hidden shrink-0">
+          {usuario.foto_url ? (
+            <img src={usuario.foto_url} alt={usuario.nombre} className="w-full h-full object-cover" />
+          ) : (
             <span className="text-5xl font-bold text-green-800">
-            {usuario.nombre.charAt(0)}
-          </span>
+              {usuario.nombre.charAt(0)}
+            </span>
+          )}
         </div>
       </header>
 
-      {/* 2. KPIs */}
+      {/* 2. KPIs reales */}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard title="Estudiantes" value={stats.estudiantes} color="text-blue-600" />
         <StatCard title="Docentes y Administrativos" value={stats.personal} color="text-green-600" />
         <StatCard title="Citaciones" value={stats.citaciones} color="text-amber-600" />
         <StatCard title="Psicología" value={stats.psicologia} color="text-purple-600" />
-      </section>
-
-      {/* 3. Reconocimientos */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-yellow-100 to-yellow-50 p-6 rounded-2xl shadow-sm border border-yellow-200">
-          <h2 className="text-lg font-bold text-yellow-900 mb-2">🏆 Medalla de Puntualidad</h2>
-          <div className="flex items-center gap-4">
-            <span className="text-5xl">🥇</span>
-            <div>
-              <p className="font-bold text-yellow-900 text-xl">Puntualidad de Oro</p>
-              <p className="text-yellow-700 text-sm">Has llegado temprano el 98% de los días este mes.</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">📊 Mi Ranking</h2>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">Posición en el salón:</span>
-            <span className="font-bold text-green-700">#3 de 30</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div className="bg-green-600 h-2 rounded-full" style={{ width: '90%' }}></div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Grupo Menor y Eventos */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Mi Grupo Menor</h2>
-          <div className="bg-green-100 text-green-800 p-4 rounded-xl font-bold text-center border border-green-200 text-lg">
-            {usuario.grupo}
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">📅 Próximos Eventos</h2>
-          <div className="space-y-3">
-            <div className="p-4 bg-yellow-50 text-yellow-800 rounded-xl font-bold border border-yellow-100">
-              🎈 ¡Feliz Cumpleaños a [Nombre del Usuario]!
-            </div>
-            <div className="p-4 bg-gray-50 text-gray-600 rounded-xl border border-gray-100">
-              📢 Viernes: Reunión de Padres (Reporte de citaciones)
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. Tabla de Horario */}
-      <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-gray-800">📅 Horario Escolar - Aula de Innovación</h2>
-          <button className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-800">
-            Editar Horario
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-center border-collapse">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="p-2 border">Hora</th>
-                <th className="p-2 border">Lunes</th>
-                <th className="p-2 border">Martes</th>
-                <th className="p-2 border">Miércoles</th>
-                <th className="p-2 border">Jueves</th>
-                <th className="p-2 border">Viernes</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="p-2 border font-bold">1ra (8:00 - 8:45)</td>
-                <td className="p-2 border bg-yellow-50">EPT 5A (Leyver M.)</td>
-                <td className="p-2 border">Reserva AIP</td>
-                <td className="p-2 border">Reserva AIP</td>
-                <td className="p-2 border">Reserva AIP</td>
-                <td className="p-2 border bg-yellow-50">EPT 4B (Leyver M.)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
     </div>
   );

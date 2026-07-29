@@ -9,13 +9,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   // Estados para alertas personalizadas
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("Usuario o clave incorrectos");
 
   const router = useRouter();
-  
+
   // Inicializamos Supabase de forma segura para evitar errores de compilación estática
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
@@ -44,7 +44,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const emailFormatted = `${dni.trim().toLowerCase()}@sistema.local`;
+      // mismo dominio que usamos en Supabase (@circa.local)
+      const emailFormatted = `${dni.trim().toLowerCase()}@circa.local`;
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: emailFormatted,
@@ -57,7 +58,7 @@ export default function LoginPage() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("rol")
+        .select("rol, nombres, apellidos, cambiar_password_obligatorio")
         .eq("id", authData.user.id)
         .single();
 
@@ -65,16 +66,14 @@ export default function LoginPage() {
         throw new Error("No se encontró el perfil de usuario en la base de datos");
       }
 
-      const userRol = profileData.rol;
-      if (userRol === "admin") {
-        router.push("/admin/dashboard");
-      } else if (userRol === "docente") {
-        router.push("/docente/dashboard");
-      } else if (userRol === "estudiante") {
-        router.push("/estudiante/dashboard");
-      } else {
-        router.push("/dashboard");
+      // si debe cambiar contraseña, lo mandamos ahí primero
+      if (profileData.cambiar_password_obligatorio) {
+        router.push("/cambiar-password-obligatorio");
+        return;
       }
+
+      // todos los roles van a la MISMA carpeta /dashboard
+      router.push("/dashboard");
 
     } catch (error: any) {
       setErrorMessage(error.message || "Ocurrió un error al iniciar sesión");
@@ -95,10 +94,10 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            
+
             <h2 className="text-2xl font-bold text-gray-700 mb-2">Error</h2>
             <p className="text-gray-500 mb-6 text-center">{errorMessage}</p>
-            
+
             <button
               onClick={() => setShowErrorAlert(false)}
               className="bg-[#8b0000] hover:bg-[#a50000] text-white font-bold py-2.5 px-8 rounded transition-colors"
@@ -111,7 +110,7 @@ export default function LoginPage() {
 
       {/* --- PANTALLA PRINCIPAL --- */}
       <main className="h-screen w-full flex flex-col lg:flex-row bg-white font-sans overflow-hidden">
-        
+
         {/* PANEL 1: IMAGEN INSTITUCIONAL */}
         <section className="relative w-full lg:w-1/2 h-[40vh] lg:h-screen flex">
           <img
@@ -119,11 +118,11 @@ export default function LoginPage() {
             alt="Desfile I.E. Nuestra Señora de Copacabana"
             className="absolute inset-0 w-full h-full object-cover"
           />
-          
+
           <div className="absolute inset-0 bg-[#0A8A43]/85 flex flex-col items-center justify-center text-center px-6 lg:px-12 text-white z-10">
-            <img 
-              src="/logo-circa.png" 
-              alt="Logo CIRCA" 
+            <img
+              src="/logo-circa.png"
+              alt="Logo CIRCA"
               className="absolute top-4 left-4 lg:top-8 lg:left-8 w-24 lg:w-32 rounded-full shadow-lg bg-white border-2 border-white object-contain"
             />
 
@@ -142,12 +141,12 @@ export default function LoginPage() {
         {/* PANEL 2: FORMULARIO DE INICIO DE SESIÓN */}
         <section className="w-full lg:w-1/2 h-full flex items-center justify-center p-6 lg:p-8 bg-white overflow-y-auto">
           <div className="w-full max-w-[460px] flex flex-col items-center text-center my-auto">
-            
+
             <div className="mb-6 w-full flex flex-col items-center">
-              <img 
-                src="/logo-ie.png" 
-                alt="Insignia I.E. Nuestra Señora de Copacabana" 
-                className="h-24 lg:h-28 w-auto mb-3 rounded-full shadow-md object-contain" 
+              <img
+                src="/logo-ie.png"
+                alt="Insignia I.E. Nuestra Señora de Copacabana"
+                className="h-24 lg:h-28 w-auto mb-3 rounded-full shadow-md object-contain"
               />
               <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">
                 Plataforma Educativa
@@ -243,7 +242,7 @@ export default function LoginPage() {
               {/* Footer */}
               <div className="border-t border-gray-100 pt-4 text-center text-sm">
                 <p className="text-gray-500">
-                  ¿No tienes cuenta? {" "}
+                  ¿No tienes cuenta?{" "}
                   <button className="text-[#0A8A43] font-semibold hover:underline">
                     Regístrate aquí
                   </button>
